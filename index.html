@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="referrer" content="no-referrer">
+    <title>网一云音乐</title>
+    
+    <!-- 图标库 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- 样式文件 -->
+    <link rel="stylesheet" href="./yinyueapi/yy.css">
+    
+    <!-- 第三方库：ColorThief (用于提取封面主题色) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.min.js"></script>
+</head>
+<body>
+
+<!-- 1. 首页视图 -->
+<div id="view-home" class="page-view scroll-view">
+    <div class="header">
+        <div class="search-box" onclick="switchView('search')">
+            <i class="fas fa-search search-icon"></i>
+            <div class="search-placeholder">搜索音乐</div>
+        </div>
+    </div>
+    <div class="page-content">
+        <!-- 每日推荐卡片 -->
+        <div class="daily-recommend-card" onclick="loadDailySongs()">
+            <div class="dr-text">
+                <div class="dr-title">每日推荐</div>
+                <div class="dr-sub">根据你的口味生成</div>
+            </div>
+            <div class="date-box">
+                <div class="date-day" id="daily-date">--</div>
+                <div class="date-month">/ 今日</div>
+            </div>
+        </div>
+        
+        <!-- 推荐歌单网格 -->
+        <div class="section-title">
+            <span id="recommend-title">推荐歌单</span>
+        </div>
+        <div class="grid-container" id="recommend-container">
+            <div class="loading-skeleton"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. 我的视图 -->
+<div id="view-my" class="page-view scroll-view hidden">
+    <!-- 未登录状态 -->
+    <div id="login-panel" style="display: none; text-align: center; padding-top: 100px;">
+        <i class="fas fa-music" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px; opacity: 0.5;"></i>
+        <div style="color: #666; margin-bottom: 30px; font-size: 14px;">登录网易云音乐<br>手机电脑多端同步</div>
+        <button class="login-btn" onclick="showLoginModal()">立即登录</button>
+    </div>
+    
+    <!-- 已登录状态 -->
+    <div id="user-panel" style="display: none;">
+        <div class="profile-header">
+            <img id="user-avatar" class="avatar" src="" alt="头像">
+            <div class="user-info">
+                <div id="user-name" class="user-name">用户名</div>
+                <div class="user-level">VIP</div>
+            </div>
+            <div class="logout-btn" onclick="handleLogout()">退出</div>
+        </div>
+        <div class="section-title">我的歌单</div>
+        <div id="user-playlists"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<!-- 3. 搜索视图 -->
+<div id="view-search" class="page-view scroll-view hidden">
+    <div class="header">
+        <i class="fas fa-arrow-left" onclick="goBack()"></i>
+        <div class="search-box active">
+            <form action="javascript:void(0);" onsubmit="doSearch(); return false;" style="flex:1; display:flex; align-items:center;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="search" id="search-input" placeholder="输入歌手或歌曲名..." autocomplete="off">
+            </form>
+        </div>
+        <span class="search-btn-text" onclick="doSearch()">搜索</span>
+    </div>
+    <div class="page-content">
+        <div class="song-list" id="search-results"></div>
+    </div>
+</div>
+
+<!-- 4. 歌单详情视图 -->
+<div id="view-playlist" class="page-view scroll-view hidden">
+    <div class="header" style="position: fixed; top: 0; left: 0; width: 100%; z-index: 100; border: none; box-shadow: none; background: transparent;">
+        <i class="fas fa-arrow-left" onclick="goBack()"></i>
+    </div>
+    <div id="playlist-details-container"></div>
+</div>
+
+<!-- 全局组件：登录弹窗 -->
+<div id="login-modal" class="modal-overlay hidden" onclick="hideLoginModal(event)">
+    <div class="modal-content">
+        <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">扫码登录</div>
+        <div id="qr-status" style="font-size: 12px; color: #999; margin-bottom: 15px;">请使用网易云音乐APP扫码</div>
+        <img id="qr-img" class="qr-img" src="" alt="QR Code">
+    </div>
+</div>
+
+<!-- 全局组件：Toast 提示 -->
+<div id="toast" class="toast-container"></div>
+
+<!-- 全局组件：底部 Mini 播放器 -->
+<div class="mini-player" id="mini-player" onclick="openFullPlayer()">
+    <div class="mini-cover" id="mini-cover-div">
+        <img id="mini-img" src="https://p1.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg" alt="">
+    </div>
+    <div class="mini-info">
+        <div class="mini-title ellipsis" id="mini-title">网易云音乐</div>
+        <div class="mini-artist ellipsis" id="mini-artist">聆听好时光</div>
+    </div>
+    <div class="mini-controls" onclick="event.stopPropagation()">
+        <i class="far fa-heart mini-like-btn" id="mini-like-btn" onclick="toggleLikeCurrentSong(event)" data-song-id="current" style="font-size: 18px;"></i>
+        <i class="fas fa-step-backward mini-btn" onclick="playPrev()" style="font-size: 20px;"></i>
+        <div class="mini-btn" onclick="togglePlay()" style="width: 40px; justify-content: center;">
+            <i class="fas fa-play-circle" id="mini-play-btn" style="font-size: 34px; color: var(--text-main);"></i>
+        </div>
+        <i class="fas fa-step-forward mini-btn" onclick="playNext()" style="font-size: 20px;"></i>
+        <i class="fas fa-list mini-btn" onclick="togglePlaylistDrawer()" style="font-size: 20px;"></i>
+    </div>
+</div>
+
+<!-- 全局组件：底部播放列表抽屉 -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="togglePlaylistDrawer()"></div>
+<div class="playlist-drawer" id="playlist-drawer">
+    <div class="drawer-header">
+        <span>当前播放 (<span id="playlist-count">0</span>)</span>
+        <div onclick="clearPlaylist()"><i class="fas fa-trash-alt" style="font-size: 14px; color: #999;"></i></div>
+    </div>
+    <div class="drawer-list" id="drawer-list"></div>
+</div>
+
+<!-- 全局组件：底部导航栏 -->
+<div class="nav-bar">
+    <a href="#" class="nav-item active" onclick="switchTab('home', this)">
+        <i class="fas fa-compact-disc"></i>
+        <span>发现</span>
+    </a>
+    <a href="#" class="nav-item" onclick="switchTab('my', this)">
+        <i class="fas fa-user"></i>
+        <span>我的</span>
+    </a>
+</div>
+
+<!-- 全局组件：全屏播放器 -->
+<div class="full-player" id="full-player">
+    <div class="fp-bg" id="fp-bg"></div>
+    
+    <!-- 头部 (下滑收起) -->
+    <div class="fp-header">
+        <div class="fp-back" onclick="closeFullPlayer()">
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="fp-title-box">
+            <div class="fp-title ellipsis" id="fp-title">Title</div>
+            <div class="fp-artist ellipsis" id="fp-artist">Artist</div>
+        </div>
+        <i class="far fa-heart fp-like-btn" id="fp-like-btn" onclick="toggleLikeCurrentSong(event)" data-song-id="current"></i>
+    </div>
+    
+    <!-- 内容区域 (CD/歌词切换) -->
+    <div class="fp-content" onclick="toggleLyricView()">
+        <div class="cd-wrapper" id="cd-wrapper">
+            <img src="" class="cd-image" id="fp-cover" alt="Cover" crossorigin="anonymous">
+        </div>
+        <div class="lyric-wrapper" id="lyric-wrapper">
+            <div class="lyric-content" id="lyric-content"></div>
+        </div>
+    </div>
+
+    <!-- 底部控制 -->
+    <div class="fp-controls">
+        <div class="volume-container">
+            <i class="fas fa-volume-down volume-icon"></i>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1">
+            <i class="fas fa-volume-up volume-icon"></i>
+        </div>
+
+        <div class="progress-bar-box" id="progress-box">
+            <span class="time-text" id="current-time">0:00</span>
+            <div class="progress-bg-wrapper" id="progress-bg-wrapper">
+                <div class="progress-bg">
+                    <div class="progress-current" id="progress-bar">
+                        <div class="progress-dot"></div>
+                    </div>
+                </div>
+            </div>
+            <span class="time-text" id="total-time">0:00</span>
+        </div>
+        <div class="main-controls">
+            <!-- 播放模式 -->
+            <div class="ctrl-btn" onclick="togglePlayMode()">
+                <i class="fas fa-exchange-alt" id="mode-icon" style="font-size: 20px;"></i>
+            </div>
+            <i class="fas fa-step-backward ctrl-btn" onclick="playPrev()" style="font-size: 24px;"></i>
+            <div class="ctrl-btn btn-play" onclick="togglePlay()">
+                <i class="fas fa-play" id="fp-play-icon"></i>
+            </div>
+            <i class="fas fa-step-forward ctrl-btn" onclick="playNext()" style="font-size: 24px;"></i>
+            <div class="ctrl-btn" onclick="togglePlaylistDrawer()">
+                <i class="fas fa-list-ul" style="font-size: 20px;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 核心音频元素 -->
+<audio id="audio-player" crossorigin="anonymous"></audio>
+
+<!-- 脚本引入：必须先引入 API 层，再引入 业务层 -->
+<script src="./yinyueapi/api.js"></script>
+<script src="./yinyueapi/apii.js"></script>
+
+</body>
+</html>
